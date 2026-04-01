@@ -50,4 +50,4 @@ jobs:
         run: |
           set -euo pipefail
           echo "Running ingestion for all configured sources"
-          python -m txfno_data_bot run all
+          python -m taifex_ingestor.cli run all
