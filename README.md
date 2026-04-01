@@ -1,25 +1,129 @@
 # TXFnO-Data-bot
 
-## Ingestion services
+TXFnO-Data-bot downloads the latest FnO report file from a listing page, writes it deterministically to disk, and uploads it through a pluggable uploader interface.
 
-This repository includes three composable services:
+## Architecture summary
 
-- `download_service.py`: downloads ZIP payloads, validates non-empty and ZIP structure, and stores files under `data/raw/{source}/{yyyy-mm-dd}/{filename}.zip`.
-- `gcs_uploader.py`: uploads local ZIP files to `taifex/raw/{source}/{yyyy-mm-dd}/{filename}.zip` in GCS.
-- `ingestion_service.py`: orchestrates `fetch -> parse -> download -> upload` for a single source or all registered sources.
+The project is intentionally small and split into focused modules:
 
-### Idempotency strategy
+- `txfno_data_bot.parser`
+  - Chooses preferred source format (`.csv` preferred over `.rpt`).
+  - Extracts embedded dates from candidate links and selects the latest available report.
+- `txfno_data_bot.urls`
+  - Resolves relative links against the index URL and preserves absolute links.
+- `txfno_data_bot.paths`
+  - Builds deterministic, date-partitioned output paths and canonical filenames.
+- `txfno_data_bot.orchestrator`
+  - Coordinates scraping links, choosing the best source file, downloading bytes, writing locally, and calling uploader.
 
-This implementation uses **safe overwrite** for idempotency.
+## Repository tree
 
-- Local files are written to deterministic paths, so reruns replace the same file.
-- GCS uploads target deterministic object keys and overwrite the same object.
-- Re-running ingestion for the same source/date produces a stable final state without duplicate objects.
+```text
+.
+├── .env.example
+├── README.md
+├── tests
+│   ├── conftest.py
+│   ├── test_orchestrator.py
+│   ├── test_parser.py
+│   ├── test_paths.py
+│   └── test_urls.py
+└── txfno_data_bot
+    ├── __init__.py
+    ├── orchestrator.py
+    ├── parser.py
+    ├── paths.py
+    └── urls.py
+```
 
-### Logging and failures
+## Local setup and usage
 
-The services log `source`, `date`, `url`, `local_path`, and `gcs_object` where applicable. They raise meaningful, stage-specific exceptions:
+### 1) Create a virtual environment
 
-- `DownloadError`
-- `UploadError`
-- `IngestionError`
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -U pip pytest
+```
+
+### 2) Configure environment
+
+```bash
+cp .env.example .env
+# edit .env for your environment
+```
+
+### 3) Run tests
+
+```bash
+pytest -q
+```
+
+### 4) Run orchestration (Python API)
+
+```python
+from datetime import date
+from txfno_data_bot.orchestrator import run_once
+
+# Provide concrete implementations in production.
+result = run_once(
+    index_url="https://example.com/reports/index.html",
+    http_client=my_http_client,
+    uploader=my_uploader,
+    output_root="./data",
+    trade_date=date.today(),
+)
+print(result)
+```
+
+## Idempotency behavior
+
+- The bot always resolves to a single latest source URL per run.
+- Local output path is deterministic by trade date (`YYYY/MM/txfno_YYYYMMDD.ext`).
+- Re-running the same date/source overwrites the same local file path (no duplicate filenames).
+- Upload idempotency depends on uploader implementation:
+  - object-store uploaders should use deterministic object keys
+  - upsert/overwrite behavior should be enabled on destination
+
+## GitHub Actions setup and secrets
+
+Create a workflow that:
+1. checks out the repo,
+2. sets up Python,
+3. installs dependencies,
+4. runs `pytest`.
+
+Recommended repository secrets/variables (only if required by your uploader/runtime):
+
+- `TXFNO_INDEX_URL` (can also be a plain Actions variable)
+- `TXFNO_UPLOAD_BUCKET`
+- `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_REGION` (if using S3)
+- any provider-specific token required by your uploader backend
+
+Never commit `.env` with real credentials.
+
+## Troubleshooting and expected logs
+
+### Expected log flow (INFO level)
+
+- "Fetched index page"
+- "Discovered N candidate links"
+- "Selected format: csv|rpt"
+- "Selected latest source: <url>"
+- "Wrote local file: <path>"
+- "Uploaded artifact: <destination>"
+
+### Common issues
+
+- **No CSV or RPT link found**
+  - The source page HTML changed or links are generated dynamically.
+- **Could not extract date from URL**
+  - Filename/date format in source links is unsupported.
+- **Upload failure**
+  - Missing credentials, bucket misconfiguration, or network/ACL issues.
+- **Unexpected file extension**
+  - Source link has no extension; bot defaults to `.dat`.
+
+## Runtime environment variables
+
+See `.env.example` for the canonical list and defaults.
