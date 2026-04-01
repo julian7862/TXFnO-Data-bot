@@ -1,49 +1,25 @@
 [build-system]
-requires = ["setuptools", "wheel"]
+requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "taifex-ingestor"
 version = "0.1.0"
-description = "TAIFEX data ingestion utilities"
+description = "TAIFEX futures and options ingestion package"
 readme = "README.md"
-requires-python = ">=3.11"
-license = { file = "LICENSE" }
+requires-python = ">=3.10"
 authors = [
   { name = "TXFnO Data Bot" }
 ]
 dependencies = [
-  "requests>=2.31",
-  "beautifulsoup4>=4.12",
-  "google-cloud-storage>=2.16",
-]
-
-[project.optional-dependencies]
-dotenv = [
-  "python-dotenv>=1.0"
-]
-dev = [
-  "pytest>=8.0",
-  "pytest-mock>=3.14",
-  "responses>=0.25",
+  "requests>=2.31.0",
 ]
 
 [project.scripts]
 taifex-ingestor = "taifex_ingestor.cli:main"
 
-[tool.pytest.ini_options]
-minversion = "8.0"
-addopts = "-ra"
-testpaths = ["tests"]
-pythonpath = ["."]
+[tool.setuptools]
+package-dir = {"" = "src"}
 
-[tool.black]
-line-length = 88
-target-version = ["py311"]
-
-[tool.ruff]
-line-length = 88
-target-version = "py311"
-
-[tool.ruff.lint]
-select = ["E", "F", "I", "UP"]
+[tool.setuptools.packages.find]
+where = ["src"]
