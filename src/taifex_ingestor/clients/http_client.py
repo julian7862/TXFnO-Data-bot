@@ -1,4 +1,4 @@
-"""HTTP client wrapper for downloading source payloads."""
+"""HTTP client wrapper for crawling pages and downloading artifacts."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ class HttpClient:
         self.timeout_seconds = timeout_seconds
         self.user_agent = user_agent
 
-    def get(self, url: str) -> bytes:
+    def _request(self, url: str) -> requests.Response:
         try:
             response = requests.get(
                 url,
@@ -22,6 +22,14 @@ class HttpClient:
                 headers={"User-Agent": self.user_agent},
             )
             response.raise_for_status()
-            return response.content
+            return response
         except requests.RequestException as exc:
-            raise DownloadError(f"HTTP download failed for {url}") from exc
+            raise DownloadError(f"HTTP request failed for {url}") from exc
+
+    def get_text(self, url: str) -> str:
+        response = self._request(url)
+        return response.text
+
+    def get_bytes(self, url: str) -> bytes:
+        response = self._request(url)
+        return response.content

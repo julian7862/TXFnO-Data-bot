@@ -1,25 +1,23 @@
-"""Source definitions for TAIFEX market datasets.
+"""Source definitions for TAIFEX market datasets."""
 
-The templates below keep shared definition fields in one place,
-so futures/options only vary by source type and URL.
-"""
+from __future__ import annotations
 
+from taifex_ingestor.config import AppConfig
 from taifex_ingestor.enums import SourceType
 from taifex_ingestor.models import SourceDefinition
 
-_BASE_SOURCE = {
-    "name": "taifex_daily_market_report",
-}
 
-SOURCE_DEFINITIONS: dict[SourceType, SourceDefinition] = {
-    SourceType.FUTURES: SourceDefinition(
-        **_BASE_SOURCE,
-        source_type=SourceType.FUTURES,
-        url="https://www.taifex.com.tw/file/taifex/Dailydownload/DailyFuture.zip",
-    ),
-    SourceType.OPTIONS: SourceDefinition(
-        **_BASE_SOURCE,
-        source_type=SourceType.OPTIONS,
-        url="https://www.taifex.com.tw/file/taifex/Dailydownload/DailyOption.zip",
-    ),
-}
+def build_source_definitions(config: AppConfig) -> dict[SourceType, SourceDefinition]:
+    """Build source definitions from runtime config."""
+    return {
+        SourceType.FUTURES: SourceDefinition(
+            name="taifex_futures_daily",
+            source_type=SourceType.FUTURES,
+            page_url=config.futures_page_url,
+        ),
+        SourceType.OPTIONS: SourceDefinition(
+            name="taifex_options_daily",
+            source_type=SourceType.OPTIONS,
+            page_url=config.options_page_url,
+        ),
+    }

@@ -1,129 +1,54 @@
-# TXFnO-Data-bot
+# TAIFEX Ingestor
 
-TXFnO-Data-bot downloads the latest FnO report file from a listing page, writes it deterministically to disk, and uploads it through a pluggable uploader interface.
+A Python ingestion system for **two TAIFEX sources in one repository**:
+- Futures source page: `https://www.taifex.com.tw/cht/3/futPrevious30DaysSalesData`
+- Options source page: `https://www.taifex.com.tw/cht/3/optPrevious30DaysSalesData`
 
-## Architecture summary
+## Runtime behavior
 
-The project is intentionally small and split into focused modules:
+For each source page, the runner:
+1. Fetches page HTML.
+2. Searches for the row matching the target date (default: today).
+3. Extracts `.csv.zip` link only from that date row (ignores `.rpt.zip`).
+4. If target-date CSV is missing, logs info and treats it as a normal non-trading-day / not-yet-published outcome.
+5. If found, downloads and validates ZIP, then writes deterministic local path.
+6. Uploads to GCS when bucket config is provided.
 
-- `txfno_data_bot.parser`
-  - Chooses preferred source format (`.csv` preferred over `.rpt`).
-  - Extracts embedded dates from candidate links and selects the latest available report.
-- `txfno_data_bot.urls`
-  - Resolves relative links against the index URL and preserves absolute links.
-- `txfno_data_bot.paths`
-  - Builds deterministic, date-partitioned output paths and canonical filenames.
-- `txfno_data_bot.orchestrator`
-  - Coordinates scraping links, choosing the best source file, downloading bytes, writing locally, and calling uploader.
-
-## Repository tree
-
-```text
-.
-├── .env.example
-├── README.md
-├── tests
-│   ├── conftest.py
-│   ├── test_orchestrator.py
-│   ├── test_parser.py
-│   ├── test_paths.py
-│   └── test_urls.py
-└── txfno_data_bot
-    ├── __init__.py
-    ├── orchestrator.py
-    ├── parser.py
-    ├── paths.py
-    └── urls.py
-```
-
-## Local setup and usage
-
-### 1) Create a virtual environment
+## CLI
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -U pip pytest
+python -m taifex_ingestor.cli run futures
+python -m taifex_ingestor.cli run options
+python -m taifex_ingestor.cli run all
+# optional override date
+python -m taifex_ingestor.cli run all --date 2026-04-01
 ```
 
-### 2) Configure environment
+Exit code:
+- `0`: success (including no-file-for-target-date normal case)
+- `1`: actual failure (network/parser/page-structure/download/upload)
 
-```bash
-cp .env.example .env
-# edit .env for your environment
-```
+## Environment variables
 
-### 3) Run tests
+- `TAIFEX_FUTURES_PAGE_URL` (default: `https://www.taifex.com.tw/cht/3/futPrevious30DaysSalesData`)
+- `TAIFEX_OPTIONS_PAGE_URL` (default: `https://www.taifex.com.tw/cht/3/optPrevious30DaysSalesData`)
+- `TAIFEX_OUTPUT_DIR` (default: `data/raw`)
+- `TAIFEX_TIMEOUT_SECONDS` (default: `30`)
+- `TAIFEX_USER_AGENT` (default: `taifex-ingestor/0.1.0`)
+- `TAIFEX_LOG_LEVEL` (default: `INFO`)
+- `GCS_BUCKET_NAME` or `TAIFEX_GCS_BUCKET` (optional)
+- `TAIFEX_GCS_PREFIX` (default: `taifex/raw`)
+
+## GitHub Actions
+
+Workflow: `.github/workflows/taifex_ingestion.yml`
+- Daily schedule + manual dispatch
+- Installs package dependencies
+- Authenticates with GCP via GitHub secret
+- Runs both sources: `python -m taifex_ingestor.cli run all`
+
+## Testing
 
 ```bash
 pytest -q
 ```
-
-### 4) Run orchestration (Python API)
-
-```python
-from datetime import date
-from txfno_data_bot.orchestrator import run_once
-
-# Provide concrete implementations in production.
-result = run_once(
-    index_url="https://example.com/reports/index.html",
-    http_client=my_http_client,
-    uploader=my_uploader,
-    output_root="./data",
-    trade_date=date.today(),
-)
-print(result)
-```
-
-## Idempotency behavior
-
-- The bot always resolves to a single latest source URL per run.
-- Local output path is deterministic by trade date (`YYYY/MM/txfno_YYYYMMDD.ext`).
-- Re-running the same date/source overwrites the same local file path (no duplicate filenames).
-- Upload idempotency depends on uploader implementation:
-  - object-store uploaders should use deterministic object keys
-  - upsert/overwrite behavior should be enabled on destination
-
-## GitHub Actions setup and secrets
-
-Create a workflow that:
-1. checks out the repo,
-2. sets up Python,
-3. installs dependencies,
-4. runs `pytest`.
-
-Recommended repository secrets/variables (only if required by your uploader/runtime):
-
-- `TXFNO_INDEX_URL` (can also be a plain Actions variable)
-- `TXFNO_UPLOAD_BUCKET`
-- `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_REGION` (if using S3)
-- any provider-specific token required by your uploader backend
-
-Never commit `.env` with real credentials.
-
-## Troubleshooting and expected logs
-
-### Expected log flow (INFO level)
-
-- "Fetched index page"
-- "Discovered N candidate links"
-- "Selected format: csv|rpt"
-- "Selected latest source: <url>"
-- "Wrote local file: <path>"
-- "Uploaded artifact: <destination>"
-
-### Common issues
-
-- **No CSV or RPT link found**
-  - The source page HTML changed or links are generated dynamically.
-- **Could not extract date from URL**
-  - Filename/date format in source links is unsupported.
-- **Upload failure**
-  - Missing credentials, bucket misconfiguration, or network/ACL issues.
-- **Unexpected file extension**
-  - Source link has no extension; bot defaults to `.dat`.
-
-## Runtime environment variables
-
-See `.env.example` for the canonical list and defaults.
