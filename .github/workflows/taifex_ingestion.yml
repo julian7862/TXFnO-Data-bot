@@ -14,10 +14,13 @@ jobs:
   ingest:
     runs-on: ubuntu-latest
     env:
-      # Required secrets
+      # Required secrets:
+      # - GCP_PROJECT_ID
+      # - GCS_BUCKET_NAME
+      # - GCP_SERVICE_ACCOUNT_KEY_JSON
       GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
       GCS_BUCKET_NAME: ${{ secrets.GCS_BUCKET_NAME }}
-      # Runtime configuration (override via repository variables as needed)
+      # Runtime configuration (optional repository variables)
       TAIFEX_ENV: ${{ vars.TAIFEX_ENV || 'production' }}
       TAIFEX_LOG_LEVEL: ${{ vars.TAIFEX_LOG_LEVEL || 'INFO' }}
       TAIFEX_MAX_RETRIES: ${{ vars.TAIFEX_MAX_RETRIES || '3' }}
@@ -39,7 +42,6 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          # Required secret: GCP_SERVICE_ACCOUNT_KEY_JSON
           credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY_JSON }}
           create_credentials_file: true
           cleanup_credentials: true
