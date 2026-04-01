@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "taifex-ingestor"
+version = "0.1.0"
+description = "TAIFEX futures and options ingestion package"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+  { name = "TXFnO Data Bot" }
+]
+dependencies = [
+  "requests>=2.31.0",
+]
+
+[project.scripts]
+taifex-ingestor = "taifex_ingestor.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
