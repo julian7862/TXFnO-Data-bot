@@ -23,6 +23,7 @@ The project is intentionally small and split into focused modules:
 ├── .env.example
 ├── README.md
 ├── tests
+│   ├── conftest.py
 │   ├── test_orchestrator.py
 │   ├── test_parser.py
 │   ├── test_paths.py
@@ -35,7 +36,7 @@ The project is intentionally small and split into focused modules:
     └── urls.py
 ```
 
-## Local setup and CLI usage
+## Local setup and usage
 
 ### 1) Create a virtual environment
 
@@ -58,7 +59,7 @@ cp .env.example .env
 pytest -q
 ```
 
-### 4) Example orchestration usage (Python entrypoint)
+### 4) Run orchestration (Python API)
 
 ```python
 from datetime import date
